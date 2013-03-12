@@ -1,0 +1,566 @@
+\documentclass{mynotes}
+
+\usepackage{etex} \usepackage{mymathdn} \usepackage{mycodesupport}
+\usepackage{mygeneralsettings} \usepackage{mymathntn}
+
+
+
+% \input{gitInfo}
+\lstset{language=Matlab}
+
+\newcommand{\by}{\mathbf{Y}} %
+\newcommand{\bx}{\mathbf{X}} %
+\newcommand{\bt}{\mathbf{T}} %
+\newcommand{\bg}{\mathbf{G}} %
+\newcommand{\bz}{\mathbf{Z}} %
+\newcommand{\bp}{\mathbf{P}} %
+\newcommand{\br}{\mathbf{R}} %
+\newcommand{\bw}{\mathbf{W}} %
+\newcommand{\eye}{\mathbf{I}} %
+
+\newcommand{\Hm}[1]{\mathbf{H}_{#1}} %hat matrix
+\newcommand{\Dm}[1]{\mathbf{D}_{#1}} %diagonal matrix
+\newcommand{\Mm}[1]{\mathbf{M}_{#1}} %annihilator matrix
+
+% random effects
+\newcommand{\Qs}{Q_{\mathcal{S}}} % Q_S
+\newcommand{\hQs}{\hat{Q}_{\mathcal{S}}} % \hat{Q}_S
+\newcommand{\Qt}{Q_{\mathcal{T}}} % Q_T
+\newcommand{\h}[2]{\hat{#1}_{\text{\an{#2}}}} %
+
+\title{\texttt{ivreg}}%
+\author{Michal
+  Kolesár\thanks{\href{mailto:kolesarmi@googlemail.com}{kolesarmi@googlemail.com}}}%
+% \date{Version \gitTag, \gitDate\thanks{Version hash \gitHash, compiled \today
+%   }}%
+
+\begin{document}
+\maketitle
+
+\section{Model and notation}
+The basic model is:
+\begin{equation}\label{eq:1}
+  y_{i}=T_{i}\beta+W_{i}'\psi+\epsilon_{i},
+\end{equation}
+where $y_{i}\in\mathbb{R}$ is the outcome variable, $T_{i}\in\mathbb{R}$ is a
+single endogenous regressor, $W_{i}\in\mathbb{R}^{L}$ is a vector of exogenous
+regressors (covariates), and $\epsilon_{i}$ is a structural error. The
+identifying assumption is that the structural error $\epsilon_{i}$ is
+uncorrelated with the covariates $W_{i}$ and a given vector of instruments
+$Z_{i}\in\mathbb{R}^{K}$:
+\begin{equation}
+  \label{eq:id}
+  \E\left[\epsilon_{i}
+    \begin{pmatrix}
+      Z_{i}\\W_{i}
+    \end{pmatrix}\right]
+  =0.
+\end{equation}
+We observe an i.i.d.~sample $\{Y_{i},T_{i},W_{i},Z_{i}\}_{i=1}^{n}$. The
+arguments of \lstinline!ivreg! are the matrices $\by$, $\bt$, $\bz$, and $\bw$,
+with rows $y_{i}$, $T_{i}$, $W_{i}'$ and $Z_{i}'$.
+
+For any full-rank $n\times m$ matrix $\mathbf{A}$, let
+$\Hm{\mathbf{A}}=\mathbf{A}(\mathbf{A}'\mathbf{A})^{-1}\mathbf{A}'$ denote the
+associated $n\times n$ projection matrix (also known as the hat matrix), and let
+$\Dm{\mathbf{A}}$ be an $n\times n$ diagonal matrix with
+$(\Hm{\mathbf{A}})_{ii}$ on the diagonal. Let $\eye_{m}$ denote the $m\times m$
+identity matrix, and let $\Mm{\mathbf{A}}=\eye_{n}-\Hm{\mathbf{A}}$ denote the
+annihilator matrix. Let $\mathbf{A}_{\perp}=\Mm{\bw}\mathbf{A}$ denote the
+residual from the sample projection of $\mathbf{A}$ onto $\bw$.
+
+\section{Estimation}
+The command
+\begin{lstlisting}
+betahat = ivreg(Y, T, Z, W);
+\end{lstlisting}
+returns a vector \lstinline!betahat! of different estimators of the causal
+effect $\beta$ in Equation (\ref{eq:1}). In particular:
+\begin{lstlisting}
+betahat = [ols, tsls, liml, mbtsls, jive, ujive, rtsls]
+\end{lstlisting}
+where \texttt{ols} is the least-squares estimator, \texttt{tsls} is the
+two-stage least squares estimator, \texttt{liml} is the limited information
+maximum likelihood estimator \citep{ar49}, \texttt{mbtsls} is the modified
+bias-corrected two-stage least squares estimator \citep{anatolyev11,kcfgi11},
+\texttt{jive} is the jackknife iv estimator \citep{ph77,aik99}, also called
+JIVE1, \texttt{ujive} is the \citet{kolesar12late} version of the jackknife iv
+estimator, and \texttt{rtsls} is the reverse two-stage least squares estimator.
+
+\paragraph{Expressions for estimators of $\beta$}
+All estimators can be written as
+\begin{equation}\label{eq:hatbeta}
+  \hat{\beta}=\frac{\hat{\bp}'\by}{\hat{\bp}'\bt},
+\end{equation}
+where the form of $\hat{\bp}$ depends on the estimator. In particular,
+\begin{align*}
+  \hat{\bp}_{\mathtt{ols}}&=\bt_{\perp}=(\eye-0\cdot \Mm{\bz_{\perp}})\bt_{\perp} ,\\
+  \hat{\bp}_{\mathtt{tsls}}&=\Hm{\bz_{\perp}}\bt=(\eye-1\cdot \Mm{\bz_{\perp}})\bt_{\perp},\\
+  \hat{\bp}_{\mathtt{liml}}&=\Mm{\bw}(\eye-k_{\mathtt{liml}}\Mm{\bw,\bz})\bt=
+  (\eye-k_{\mathtt{liml}}\Mm{\bz_{\perp}})\bt_{\perp} ,\\
+  \hat{\bp}_{\mathtt{mbtsls}}&=\Mm{\bw}(\eye-k_{\mathtt{mbtsls}}\Mm{\bw,\bz})\bt=
+  (\eye-k_{\mathtt{mbtsls}}\Mm{\bz_{\perp}})\bt_{\perp},\\
+  \hat{\bp}_{\mathtt{jive}}&=\Mm{\bw}(\eye_{n}-\Dm{\bz,\bw})^{-1}(\Hm{\bz,\bw}-\Dm{\bz,\bw})\bt=
+  \Mm{\bw}(\eye_{n}-(\eye_{n}-\Dm{(\bz,\bw)})^{-1}\Mm{(\bz,\bw)})\bt,\\
+  \hat{\bp}_{\mathtt{ujive}}&=\left[(\eye_{n}-\Dm{(\bz,\bw)})^{-1}(\Hm{(\bz,\bw)}-\Dm{(\bz,\bw)})
+    -(\eye_{n}-\Dm{\bw})^{-1}(\Hm{\bw}-\Dm{\bw})\right]\bt,\\
+  \hat{\bp}_{\mathtt{rtsls}}&=\Hm{\bz_{\perp}}\by,
+\end{align*}
+where
+\begin{align}\label{eq:k-liml}
+  k_{\mathtt{liml}}&=\min\eig \left[\left( \begin{pmatrix} \by&\bt
+      \end{pmatrix}'\Mm{\bz,\bw} \begin{pmatrix} \by&\bt
+      \end{pmatrix}\right)^{-1}
+    \begin{pmatrix}
+      \by&\bt
+    \end{pmatrix}' \Mm{\bw}\begin{pmatrix} \by&\bt
+    \end{pmatrix}\right],
+\end{align}
+and $k_{\mathtt{mbtsls}}=(1-L/n)/(1-(K - 1)/n-L/n)$. The version of
+\texttt{mbtsls} proposed in \citet{kcfgi11} uses
+$k_{\mathtt{mbtsls}}=(1-L/n)/(1-K/n-L/n)$---the modification used here ensures
+that when $K=1$ (there is a single instrument), the \texttt{tsls} and
+\texttt{mbtsls} estimators will coincide.
+
+
+
+\section{Standard Errors}
+The command
+\begin{lstlisting}
+[betahat, se] = ivreg(Y, T, Z, W);
+\end{lstlisting}
+returns an estimate of standard errors for the different estimators of $\beta$.
+\lstinline!se! is a $4\times 7$ matrix with rows computed as follows
+\begin{itemize}
+\item The first row gives estimates of the asymptotic standard errors under
+  homoscedasticity ($\E[\epsilon_{i}^{2}\mid z_{i},w_{i}]=\E[\epsilon_{i}^{2}]$)
+  and standard asymptotics, which hold the distribution of the observed data
+  $(Y_{i},T_{i},W_{i},Z_{i})$ fixed as $n\to \infty$;
+\item The second row gives heteroscedasticity-robust standard errors;
+\item The third row gives standard errors which are valid under many-instrument
+  asymptotics. Like in \citet{bekker94}, these errors are valid when the number
+  of instruments, $K$, is allowed to grow in proportion with the sample size,
+  $K/n\to \kappa$. In addition, the number of exogenous covariates, $W_{i}$, is
+  also allowed to grow with the sample size, $L/n\to \lambda$, as in
+  \citet{anatolyev11} and \citet{cfhssy11}. As in \citet{bekker94}, the
+  structural error $\epsilon_{i}$ is assumed to be Normally distributed. Since
+  \texttt{tsls} and \texttt{jive} are not consistent under these asymptotics,
+  elements of the \lstinline!se! matrix that correspond to them return
+  \lstinline!NaN!;
+\item The fourth row gives standard errors that are valid under the many invalid
+  instrument asymptotic sequence of \citet{kcfgi11}. Only \texttt{mbtsls} and
+  \texttt{ujive} are consistent for $\beta$ under this sequence, so element of
+  the \lstinline!se! matrix that correspond to other estimators return
+  \lstinline!NaN!.
+\end{itemize}
+
+
+\paragraph{Standard errors under homoscedasticity and standard asymptotics}
+Let
+\begin{equation}\label{eq:sigeps}
+  \hat{\sigma}^{2}_{\epsilon}(\hat{\beta})
+  =  (\by_{\perp}-\bt_{\perp}\hat{\beta})'(\by_{\perp}
+  -\bt_{\perp}\hat{\beta})/n.
+\end{equation}
+The standard error for \texttt{ols} is given by
+\begin{equation*}
+  \widehat{se}(\hat{\beta}_{\mathtt{ols}})=\sqrt{\frac{  \hat{\sigma}^{2}_{\epsilon}(\hat{\beta})}{
+      \bt_{\perp}'\bt_{\perp}}}.
+\end{equation*}
+The estimator of the standard error of $\hat{\beta}$ for \texttt{tsls},
+\texttt{mbtsls} and \texttt{liml} is given by
+\begin{equation*}
+  \widehat{se}(\hat{\beta})=\sqrt{\frac{  \hat{\sigma}^{2}_{\epsilon}(\hat{\beta})}{
+      \bt'\Hm{\bz_{\perp}}\bt}}.
+\end{equation*}
+The standard errors will be different if they produce different estimates of
+$\beta$. These expressions correspond to the standard errors for \texttt{tsls}
+in Stata, as well as to the standard errors for \texttt{mbtsls} and
+\texttt{liml} when the option ``\lstinline!coviv!'' is given \citep{bss07}. The
+standard error for \texttt{jive} and \texttt{ujive} is given by:
+\begin{equation*}
+  \widehat{se}(\hat{\beta})
+  =\frac{\sqrt{
+      \hat{\sigma}^{2}_{\epsilon}(\hat{\beta})
+      \cdot \hat{\bp}'\hat{\bp}}}{
+      \hat{\bp}'\bt}.
+\end{equation*}
+This estimator matches the standard error estimator for \texttt{jive} in
+Stata.\footnote{The \citet{aik99} JIVE1 esimator is referred to as UJIVE1 in
+  Stata, and is computed by the \lstinline!jive! command with the
+  \lstinline!ujive1! option, which is also the default option.}
+
+% To motivate the standard error estimator for \texttt{rtsls}, note first that
+% by arguments similar to deriving the \texttt{tsls} standard error estimator, a
+% consistent estimator for the variance of $1/\hat{\beta}_{\mathtt{rtsls}}$ is
+% given by
+% \begin{equation*}
+%   \hat{V}_{1/\hat{\beta}_{\mathtt{rtsls}}}=
+%   \frac{  \hat{\nu}_{\hat{\beta}_{\mathtt{rtsls}}}'  \hat{\nu}_{\hat{\beta}_{\mathtt{rtsls}}}/n}{
+%     \by'\Hm{\bz_{\perp}}\by},
+% \end{equation*}
+% where
+% $\hat{\nu}_{\hat{\beta}_{\mathtt{rtsls}}}=\bt_{\perp}-\by_{\perp}(1/\hat{\beta}_{\mathtt{rtsls}})$.
+% Therefore, by the delta method, a consistent estimator of the standard error
+% of \texttt{rtsls} is given by
+% \begin{equation*}
+%   \widehat{se}(\hat{\beta}_{\mathtt{jive}})=\sqrt{  \frac{  \hat{\nu}_{\hat{\beta}_{\mathtt{rtsls}}}'  \hat{\nu}_{\hat{\beta}_{\mathtt{rtsls}}}/n}{
+%       \by'\Hm{\bz_{\perp}}\by}\hat{\beta}_{\mathtt{rtsls}}^{4}.
+%   }
+% \end{equation*}
+
+
+\paragraph{Standard errors under heteroscedasticity}
+Let
+\begin{equation*}
+  \hat{\epsilon}_{\hat{\beta}}=\by-\bt\hat{\beta}-\bw\hat{\psi}(\hat{\beta})
+  =\by_{\perp}-\bt_{\perp}\hat{\beta}
+\end{equation*}
+be an estimate of the structural error in Equation \eqref{eq:1}, where
+$\hat{\psi}(\hat{\beta})=(\bw'\bw)^{-1}\bw(\by-\bt\hat{\beta})$. The
+heteroscedasticity-robust standard error is given by
+\begin{equation*}
+  \widehat{se}(\hat{\beta})  =\frac{\sqrt{\sum_{i=1}^{n}
+      \hat{\epsilon}_{\hat{\beta},i}^{2}\hat{\bp}_{i}^{2}}}{\hat{\bp}'\bt},
+\end{equation*}
+where for \texttt{ols}, $\hat{\bp}=\bt_{\perp}$, for \texttt{tsls},
+\texttt{liml}, and \texttt{mjive}, $\hat{\bp}=\Hm{\bz_{\perp}}\bt$, for
+\texttt{jive} $\hat{\bp}=\hat{\bp}_{\mathtt{jive}}$, and for \texttt{ujive},
+$\hat{\bp}=\hat{\bp}_{\mathtt{ujive}}$.
+
+\paragraph{Standard errors under many instrument asymptotics}
+The estimator of the standard error for \texttt{liml} corresponds to
+$\sqrt{-\h{\mathcal{H}}{re}^{11}}$, where $\h{\mathcal{H}}{re}^{11}$ is the
+(1,1) element of the inverse Hessian of the random effects likelihood
+\citep{kolesar12re},
+    \begin{equation*}
+      \h{\mathcal{H}}{re}^{11}= \frac{\hat{b}'\h{\Omega}{re}\hat{b}
+        (\h{\lambda}{re}+K/n)}{n\h{\lambda}{re}}\left(
+        \hQs\h{\Omega}{re,22}-S_{22}+\frac{\hat c}{1-\hat c}\frac{\hQs}{\hat{a}'
+\h{\Omega}{re}^{-1}\hat{a}} \right)^{-1},
+    \end{equation*}
+where
+    \begin{align*}
+      S_{\perp}&=      \begin{pmatrix}
+        \by&\bt
+      \end{pmatrix}'
+\Mm{\bz,\bw}
+      \begin{pmatrix}
+        \by&\bt
+      \end{pmatrix}
+/(n-K-L),&S&= \begin{pmatrix}
+        \by&\bt
+      \end{pmatrix}'
+\Hm{\bz_{\perp}}
+      \begin{pmatrix}
+        \by&\bt
+      \end{pmatrix}/n,\\
+      \h{\lambda}{re}&=\max\eig(S^{-1}_{\perp}S)-K /n,\\
+      \h{\Omega}{re}&=\frac{n-K-L}{n-L}S_{\perp}+\frac{n}{n-L}\left(S-
+        \frac{\h{\lambda}{re}}{\hat{a}'S_{\perp}^{-1}\hat{a} } \hat{a}\hat{a}'\right),&
+      \hat{a}&=
+      \begin{pmatrix}
+        \hat{\beta}_{\mathtt{liml}}\\1
+      \end{pmatrix},
+      \\
+      \hQs &=\frac{\hat{b}'S \hat{b}}{\hat{b}'\h{\Omega}{re} \hat{b}},& \hat{b}
+      &=
+  \begin{pmatrix}
+    1\\-\hat{\beta}_{\mathtt{liml}}
+  \end{pmatrix},\\
+\hat c&=\frac{\h{\lambda}{re} \hQs}{(K/n+\h{\lambda}{re})(1-L/n)}.
+    \end{align*}
+    The estimator for the standard error of \texttt{mbtsls} is based on the
+    Hessian of the uncorrelated random effects likelihood with the estimator of
+    the variance of the direct effects set to zero \citep{kolesar12re}
+    \begin{equation*}
+      \h{\mathcal{H}}{ure}=
+      \frac{1}{\hat{\Lambda}_{22}^{2}}\left(\hat{\Lambda}_{22}\hat{\Sigma}_{11}+
+        \frac{(1-L/n )K/n}{(1-K/n-L/n)}
+        (\hat{\Sigma}_{11}\hat{\Sigma}_{22}+\hat{\Sigma}_{12}^{2})    \right),
+    \end{equation*}
+where
+\begin{align*}
+  \hat{\Lambda}_{22}&= \begin{cases} S_{22}-\frac{K }{n}\h{\Omega}{22,ure} &
+    \text{if $(\min\eig(S_{\perp}^{-1}S))\geq K/n$,} \\
+    \frac{\h{\lambda}{re}}{\h{a}{re}'\h{\Omega}{re}^{-1}\h{a}{re}} &
+    \text{otherwise.}
+      \end{cases},\\
+      \h{\Omega}{ure}&=\begin{cases}
+        S_{\perp} & \text{if $(\min\eig(S_{\perp}^{-1}S))\geq K/n$,} \\
+        \h{\Omega}{re} & \text{otherwise.}
+      \end{cases},\\
+      \h{\Sigma}{re} &= \h{\Gamma}{re}^{-1}\h{\Omega}{re}\h{\Gamma}{re}^{-1}, &
+      \h{\Gamma}{re} &=\begin{pmatrix} 1& \hat{\beta}_{\mathtt{mbtsls}}\\
+        0 &1
+  \end{pmatrix}.
+  % \h{\Sigma}{ure}&= {\h{\Gamma}{ure}}'\h{\Omega}{ure} \h{\Gamma}{ure}???&
+  % \h{\Gamma}{ure}&=\begin{pmatrix} 1 & 0\\-\h{\beta}{ure}&1
+  % \end{pmatrix}
+\end{align*}
+
+\todo[inline]{todo: compute UJIVE standard errors}
+
+\paragraph{Many invalid instruments}
+The estimator for the standard error of \texttt{mbtsls} is based on the Hessian
+of the uncorrelated random effects likelihood,
+    \begin{equation*}
+      \h{\mathcal{H}}{ure}=
+      \frac{1}{\hat{\Lambda}_{22}^{2}}\left(\hat{\Lambda}_{22}\hat{\Sigma}_{11}+
+        \frac{(1-L/n )K/n}{(1-K/n-L/n)}
+        (\hat{\Sigma}_{11}\hat{\Sigma}_{22}+\hat{\Sigma}_{12}^{2})
+        +\hat{\Lambda}_{11}\hat{\Sigma}_{22}+
+        \hat{\Lambda}_{11}\Lambda_{22}\cdot n/K
+      \right),
+    \end{equation*}
+    where $\hat{\Lambda}_{22}$ and $\hat{\Sigma}_{22}$ are computed as before,
+    and $\hat{\Lambda}_{11}=\max\left\{\hat{b}_{\mathtt{mbtsls}}'(S-\frac{K
+        }{n}S_{\perp}) \hat{b}_{\mathtt{mbtsls}} ,0\right\},$
+
+
+\todo[inline]{todo: compute UJIVE standard errors}
+
+
+\section{Other outputs}
+The command
+\begin{lstlisting}
+[betahat, se, stats] = ivreg(Y, T, Z, W);
+\end{lstlisting}
+returns a cell array \lstinline!stats! that contains additional statistics and
+their names. In particular, it contains the first-stage $F$-statistic,
+\begin{align*}
+  \text{\lstinline!stats\{1,1\}!} &= \frac{\bt'\Hm{\bz_{\perp}}\bt}{K \cdot\bt'\Mm{\bz,\bw}\bt /(n-K-L)},&
+  \text{\lstinline!stats\{1,2\}!} &= \text{\lstinline!'F'!},
+\end{align*}
+an estimator of the reduced-form covariance matrix
+\begin{align*}
+  \text{\lstinline!stats\{2,1\}!}&=
+  \begin{pmatrix}
+    \by&\bt
+  \end{pmatrix}' \Mm{\bz,\bt} \begin{pmatrix}
+    \by&\bt
+  \end{pmatrix}/(n-K-L)&
+  \text{\lstinline!stats\{2,2\}!} &= \text{\lstinline!'Omega'!},
+\end{align*}
+an estimator of the covariance matrix of the reduced form coefficients,
+$\Xi=\Pi'\bz_{\perp}'\bz_{\perp}\Pi/n$ (see \citet{kolesar12late}), where $\Pi$
+is the coefficient on $Z_{i}$ in the linear predictor
+$\LP{(Y_{i},T_{i})}{Z_{i},W_{i}}$:
+\begin{align*}
+  \text{\lstinline!stats\{3,1\}!}&=
+  \begin{pmatrix}
+    \by&\bt
+  \end{pmatrix}' \Hm{\bz_{\perp}} \begin{pmatrix}
+    \by&\bt
+  \end{pmatrix}/n-K/n\cdot     \text{\lstinline!stats\{2,1\}!}&
+  \text{\lstinline!stats\{3,2\}!} &= \text{\lstinline!'Xi'!},
+\end{align*}
+The estimator is consistent under the many-instrument asymptotic sequence and
+homoscedasticity.
+
+
+
+\begin{appendices}
+  The appendix derives the expressions for different estimators an gives
+  informal proofs of consistency of estimators of the asymptotic variance.
+
+  Let $\bx=(\bt,\bw)$ denote the full matrix of covariates in the structural
+  equation.
+
+\section{Estimators}
+If an estimator of $(\beta,\psi')'$ can be written as
+$(\hat{\bx}'\bx)^{-1}\hat{\bx}'\by$, where $\hat{\bx}=(\hat{\bt},\bw)$, we
+obtain:
+  \begin{align}\label{eq:betapsi}
+    \begin{pmatrix}
+      \hat{\beta}\\\hat{\psi}
+    \end{pmatrix}=
+    \begin{pmatrix}
+      \hat{\bt}'\bt& \hat{\bt}'\bw\\
+      \bw'\bt&\bw'\bw
+    \end{pmatrix}^{-1}
+    \begin{pmatrix}
+      \hat{\bt}'\by\\
+      \bw'\by
+    \end{pmatrix}
+    =
+    \begin{pmatrix}
+      (\hat{\bt}'\Mm{\bw}\bt)^{-1}\hat{\bt}'\Mm{\bw}\by\\
+      (\bw'\bw)^{-1}\bw'(\by-\bt\hat{\beta}),
+    \end{pmatrix}
+  \end{align}
+  so that letting $\hat{\bp}=\Mm{\bw}\hat{\bt}$, an estimator of $\beta$ is
+  given by Equation \eqref{eq:hatbeta}. Now:
+  \begin{align*}
+    \hat{\bx}_{\mathtt{ols}}&=\bx,\\
+    \hat{\bx}_{\mathtt{tsls}}&=\Hm{\bz,\bw}\bx=
+    \begin{pmatrix}
+      \Hm{\bz,\bw}\bt& \bw,
+    \end{pmatrix}
+  \end{align*}
+  which, using the identity
+  \begin{equation}\label{eq:Hzw}
+    \Mm{\bw}\Hm{\bz,\bw}=\Mm{\bw}(\Hm{\bz_{\perp}}+\Hm{\bw})=\Hm{\bz_{\perp}},
+  \end{equation}
+  leads to the expressions for the \texttt{ols} and \texttt{tsls} estimators of
+  $\beta$. The espressions for \texttt{liml}, \texttt{mbtsls}, and \texttt{jive}
+  follow similarly. The expression for \texttt{ujive} and \texttt{rtsls} are
+  derived in \citet{kolesar12late}.
+
+\section{Standard Errors}
+
+\paragraph{Homoscedasticity}
+The homoscedastic case strengthens the moment condition \eqref{eq:id} to
+\begin{align*}
+  \CE{\epsilon_{i}}{Z_{i},W_{i}}&=0&
+  \CE{\epsilon_{i}^{2}}{Z_{i},W_{i}}&=\E[\epsilon^{2}_{i}]=\sigma^{2}_{\epsilon}
+\end{align*}
+An estimator of variance of the structural error is then given by
+$\hat{\sigma}^{2}_{\epsilon}=\hat{\epsilon}'\hat{\epsilon}/n$, where
+$\hat{\epsilon}=\by-\bt\hat{\beta}-\bw'\hat{\psi}$. If an estimator admits the
+representation \eqref{eq:betapsi}, then $\hat{\epsilon}$ can be written as
+$\hat{\epsilon}=\Mm{\bw}(\by-\bt\hat{\beta})$, which leads to the expression for
+$\hat{\sigma}^{2}_{\epsilon}$ given by Equation \eqref{eq:sigeps}.
+
+The asymptotic variance of the \texttt{ols} estimator of the best linear
+predictor, $(\E[X_{i}X_{i}']^{-1}\E[X_{i}'y_{i}])$, is given by
+$\sigma_{\epsilon}^{2}\E[X_{i}X_{i}']^{-1}$. A the standard White estimator of
+this variance is given by
+\begin{equation*}
+  \hat{\sigma}^{2}_{\epsilon}(\bx'\bx)^{-1}.
+\end{equation*}
+Since the (1,1) element of $(\bx'\bx)^{-1}$ is given by $(\bt\Mm{\bw}\bt)^{-1}$,
+the expression for the \texttt{ols} standard error follows. The asymptotic
+variance for \texttt{tsls}, \texttt{liml}, and \texttt{mbtsls} estimators of
+$(\beta,\psi)$ is given by\todo{check the \citet{dm93} reference for asymptotic variances}\footnote{see \citet[Equation 5.24]{wooldridge02} and
+\citet{dm93}.}
+\begin{equation*}
+  \sigma^{2}_{\epsilon}\left\{\E[X_{i}\tilde{Z}_{i}']
+    \E[\tilde{Z}_{i}\tilde{Z}_{i}']^{-1}\E[\tilde{Z}_{i}X_{i}']\right\}^{-1},
+\end{equation*}
+where $\tilde{Z}_{i}=(Z_{i}',W_{i}')'$. This leads to the plug-in estimator
+\begin{equation*}
+  \hat{\sigma}^{2}_{\epsilon}(\hat{\beta})(\bx' \Hm{\bz,\bw}\bx)^{-1}.
+\end{equation*}
+Now, since
+\begin{equation*}
+  \begin{split}
+    (\bx'\Hm{\bz,\bw}\bx)^{-1}&=
+    \begin{pmatrix}
+      \bt'\Hm{\bz,\bw}\bt & \bt'\bw\\
+      \bw'\bt & \bw'\bw
+    \end{pmatrix}^{-1}\\
+    &=
+    \begin{pmatrix}
+      (\bt'\Hm{\bz_{\perp}}\bt)^{-1} & -  (\bt'\Hm{\bz_{\perp}}\bt)^{-1}\bt'\bw(\bw'\bw)^{-1}\\
+      -(\bw'\bw)^{-1}\bw'\bt (\bt'\Hm{\bz_{\perp}}\bt)^{-1}& (\bw'\bw)^{-1}+
+      (\bw'\bw)^{-1}\bw'\bt (\bt'\Hm{\bz_{\perp}}\bt)^{-1}\bt'\bw(\bw'\bw)^{-1}
+    \end{pmatrix},
+  \end{split}
+\end{equation*}
+the expression for the \texttt{tsls}, \texttt{liml}, and \texttt{mbtsls}
+standard errors follows.
+
+\lstinline!ivreg! uses the Stata estimator of the variance of \texttt{jive}
+\citep{poi06}, given by
+\begin{equation*}
+    \hat{\sigma}^{2}_{\epsilon}(\hat{\beta})(\hat{\bx}'\bx)^{-1}\hat{\bx}'\hat{\bx}(\bx'\hat{\bx})^{-1},
+\end{equation*}
+where $\hat{\bx}=(\hat{\bt},\bw)$,
+$\hat{\bt}=(\eye_{n}-\Dm{\bz,\bw})^{-1}(\Hm{\bz,\bw}-\Dm{\bz,\bw})\bt$.
+Therefore,
+\begin{equation*}
+  (\hat{\bx}'\bx)^{-1}=
+  % \begin{pmatrix}
+  %   \hat{\bt}'\bt&\hat{\bt}'\bw\\
+  %   \bw'\bt& \bw'\bw
+  % \end{pmatrix}^{-1}=
+  \begin{pmatrix}
+    (\hat{\bp}'\bt)^{-1}&-
+    (\hat{\bp}'\bt)^{-1}\hat{\bt}'\bw(\bw'\bw)^{-1}\\
+    -(\bw'\bw)^{-1} \bw'\bt(\hat{\bp}'\bt)^{-1}& (\bw'\bw)^{-1}+(\bw'\bw)^{-1}
+    \bw'\bt (\hat{\bp}'\bt)^{-1} \hat{\bt}'\bw(\bw'\bw)^{-1}
+  \end{pmatrix},
+\end{equation*}
+where $\hat{\bp}=\Mm{\bw}\hat{\bt}=\hat{\bp}_{\mathtt{jive}}$ so that the (1,1)
+element of the estimator of the variance evaluates as
+\begin{equation*}
+    \hat{\sigma}^{2}_{\epsilon}(\hat{\beta})(\hat{\bp}'\bt)^{-1}  (\hat{\bt}'\Mm{\bw}\hat{\bt})(\bt'\hat{\bp})^{-1}.
+\end{equation*}
+The expression for the \texttt{jive} standard error estimator follows.
+
+\todo[inline]{justify UJIVE}
+
+\paragraph{Heteroscedasticity}
+Without the additional homoscedasticity restrictions on the structural error,
+the asymptotic variance of the \texttt{ols} estimator is given by
+$\E[X_{i}X_{i}']^{-1}\E[\epsilon_{i}^{2}X_{i}X_{i}']\E[X_{i}X_{i}']^{-1}$, and
+the standard White estimator of the \texttt{ols} variance is given by
+\begin{equation*}
+  (\bx'\bx)^{-1}\sum_{i=1}^{n}\hat{\epsilon}_{i}^{2}X_{i}X_{i}'   (\bx'\bx)^{-1}
+\end{equation*}
+A robust estimator of the variance of
+\texttt{tsls}, \texttt{liml}, and \texttt{mbtsls} is given by \citep[Equation
+5.34]{wooldridge02}
+\begin{equation*}
+  (\hat{\bx}'\hat{\bx}')^{-1}
+  \sum_{i=1}^{n}\hat{\epsilon}_{i}^{2}(\hat{\bx})_{i}(\hat{\bx})_{i}'
+  (\hat{\bx}'\hat{\bx}')^{-1},
+\end{equation*}
+where $\hat{\bx}=(\Hm{\bz,\bw}\bt,\bw)$. For \texttt{jive}, I use the Stata
+implementation \citep{poi06}
+\begin{equation*}
+  (\hat{\bx}'\bx)^{-1}\sum_{i}\hat{\epsilon}_{i}^{2}\hat{\bx}_{i}\hat{\bx}_{i}'
+  (\bx'\hat{\bx})^{-1},
+\end{equation*}
+wherewhere $\hat{\bx}=(\hat{\bt},\bw)$,
+$\hat{\bt}=(\eye_{n}-\Dm{\bz,\bw})^{-1}(\Hm{\bz,\bw}-\Dm{\bz,\bw})\bt$.All of these estimators have the form
+\begin{equation}\label{eq:2}
+  (\hat{\bx}'\bx)^{-1}\sum_{i}\hat{\epsilon}_{i}^{2}\hat{\bx}_{i}\hat{\bx}_{i}'
+  (\bx'\hat{\bx})^{-1},
+\end{equation}
+where $\hat{\bx}=(\hat{\bt},\bw)$ for some $\hat{\bt}$. The (1,1) element of
+\eqref{eq:2} can be written as
+\begin{multline*}
+  (\bt'\Mm{\bw}\hat{\bt})^{-1}
+  \left[\sum_{i=1}^{n}\hat{\epsilon}_{i}^{2}\hat{\bt}_{i}^{2} -
+    \sum_{i=1}^{n}\hat{\epsilon}_{i}^{2}\hat{\bt}_{i}W_{i}'\hat{\phi}
+    -\hat{\phi}' \sum_{i=1}^{n}\hat{\epsilon}_{i}^{2}W_{i}\hat{\bt}_{i}
+    +\hat{\phi}' \sum_{i=1}^{n}\hat{\epsilon}_{i}^{2}W_{i}W_{i}'
+    \hat{\phi}\right]  (\hat{\bt}'\Mm{\bw}\bt)^{-1}  \\
+  =(\bt_{\perp}'\bt_{\perp})^{-1} \sum_{i=1}^{n}\hat{\epsilon}_{i}^{2}
+  \left(\hat{\bt}_{i}-W_{i}'\hat{\phi}\right)^{2}
+  (\bt_{\perp}'\bt_{\perp})^{-1},
+\end{multline*}
+where $\hat{\phi}=(\bw'\bw)^{-1}\bw'\hat{\bt}$. Since
+$(\Mm{\hat{\bt}})_{i}=\hat{\bt}_{i}-W_{i}'\hat{\phi}$, the expressions for the
+standard errors given in the test follow. \todo[inline]{justify ujive}
+\end{appendices}
+
+\dotfill
+
+
+
+
+
+\begin{align*}
+  \begin{split}
+    (\bx'\Hm{\bz,\bw}\bx)^{-1}\bx'\Hm{\bz,\bw}\by &=
+    \begin{pmatrix}
+      (\bt'\Hm{\bz_{\perp}}\bt)^{-1} \bt'\Hm{\bz_{\perp}}\by\\
+      (\bw'\bw)^{-1} \bw'(\by-\bt (\bt'\Hm{\bz_{\perp}}\bt)^{-1}
+      \bt'\Hm{\bz_{\perp}}\by)
+    \end{pmatrix}
+  \end{split}
+\end{align*}
+
+\SmallBib
+\bibliography{/home/kolesarm/texmf/db/wi,/home/kolesarm/texmf/db/metrics,/home/kolesarm/texmf/db/books}
+
+
+
+\end{document}
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
