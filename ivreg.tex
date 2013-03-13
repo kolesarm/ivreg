@@ -5,7 +5,7 @@
 
 
 
-% \input{gitInfo}
+\input{gitInfo}
 \lstset{language=Matlab}
 
 \newcommand{\by}{\mathbf{Y}} %
@@ -31,23 +31,34 @@
 \title{\texttt{ivreg}}%
 \author{Michal
   Kolesár\thanks{\href{mailto:kolesarmi@googlemail.com}{kolesarmi@googlemail.com}}}%
-% \date{Version \gitTag, \gitDate\thanks{Version hash \gitHash, compiled \today
-%   }}%
+\date{Version \gitTag, \gitDate\thanks{Version hash \gitHash, compiled \today
+   }}%
 
 \begin{document}
 \maketitle
 
-\section{Model and notation}
-The basic model is:
+\begin{abstract}
+  This note provides additional documentation and background for the
+  \lstinline!ivreg.m! Matlab function. \lstinline!ivreg! computes a number of
+  estimators of the causal effect in an instrumental variables regression, and
+  provides several estimators of standard errors based on different asymptotic
+  approximations. It also computes additional statistics and diagnostic tests.
+\end{abstract}
+
+\todo[inline]{ToDo: derive and add standard error estimators for \texttt{ujive}
+  and \texttt{rtsls}}
+
+\section{Instrumental variables model and notation}
+The standard instrumental variables model is given by
 \begin{equation}\label{eq:1}
   y_{i}=T_{i}\beta+W_{i}'\psi+\epsilon_{i},
 \end{equation}
 where $y_{i}\in\mathbb{R}$ is the outcome variable, $T_{i}\in\mathbb{R}$ is a
 single endogenous regressor, $W_{i}\in\mathbb{R}^{L}$ is a vector of exogenous
-regressors (covariates), and $\epsilon_{i}$ is a structural error. The
-identifying assumption is that the structural error $\epsilon_{i}$ is
-uncorrelated with the covariates $W_{i}$ and a given vector of instruments
-$Z_{i}\in\mathbb{R}^{K}$:
+regressors (covariates), and $\epsilon_{i}$ is a structural error. The parameter
+of interest is $\beta$. The identifying assumption is that the structural error
+$\epsilon_{i}$ is uncorrelated with the covariates $W_{i}$ and a given vector of
+instruments $Z_{i}\in\mathbb{R}^{K}$:
 \begin{equation}
   \label{eq:id}
   \E\left[\epsilon_{i}
@@ -58,7 +69,7 @@ $Z_{i}\in\mathbb{R}^{K}$:
 \end{equation}
 We observe an i.i.d.~sample $\{Y_{i},T_{i},W_{i},Z_{i}\}_{i=1}^{n}$. The
 arguments of \lstinline!ivreg! are the matrices $\by$, $\bt$, $\bz$, and $\bw$,
-with rows $y_{i}$, $T_{i}$, $W_{i}'$ and $Z_{i}'$.
+with rows $y_{i}$, $T_{i}$, $Z_{i}'$ and $W_{i}'$.
 
 For any full-rank $n\times m$ matrix $\mathbf{A}$, let
 $\Hm{\mathbf{A}}=\mathbf{A}(\mathbf{A}'\mathbf{A})^{-1}\mathbf{A}'$ denote the
@@ -240,7 +251,7 @@ $\sqrt{-\h{\mathcal{H}}{re}^{11}}$, where $\h{\mathcal{H}}{re}^{11}$ is the
 \h{\Omega}{re}^{-1}\hat{a}} \right)^{-1},
     \end{equation*}
 where
-    \begin{align*}
+    \begin{align}
       S_{\perp}&=      \begin{pmatrix}
         \by&\bt
       \end{pmatrix}'
@@ -254,7 +265,7 @@ where
 \Hm{\bz_{\perp}}
       \begin{pmatrix}
         \by&\bt
-      \end{pmatrix}/n,\\
+      \end{pmatrix}/n,\label{eq:sperp-s}\\
       \h{\lambda}{re}&=\max\eig(S^{-1}_{\perp}S)-K /n,\\
       \h{\Omega}{re}&=\frac{n-K-L}{n-L}S_{\perp}+\frac{n}{n-L}\left(S-
         \frac{\h{\lambda}{re}}{\hat{a}'S_{\perp}^{-1}\hat{a} } \hat{a}\hat{a}'\right),&
@@ -269,7 +280,7 @@ where
     1\\-\hat{\beta}_{\mathtt{liml}}
   \end{pmatrix},\\
 \hat c&=\frac{\h{\lambda}{re} \hQs}{(K/n+\h{\lambda}{re})(1-L/n)}.
-    \end{align*}
+    \end{align}
     The estimator for the standard error of \texttt{mbtsls} is based on the
     Hessian of the uncorrelated random effects likelihood with the estimator of
     the variance of the direct effects set to zero \citep{kolesar12re}
@@ -299,8 +310,6 @@ where
   % \end{pmatrix}
 \end{align*}
 
-\todo[inline]{todo: compute UJIVE standard errors}
-
 \paragraph{Many invalid instruments}
 The estimator for the standard error of \texttt{mbtsls} is based on the Hessian
 of the uncorrelated random effects likelihood,
@@ -318,59 +327,76 @@ of the uncorrelated random effects likelihood,
         }{n}S_{\perp}) \hat{b}_{\mathtt{mbtsls}} ,0\right\},$
 
 
-\todo[inline]{todo: compute UJIVE standard errors}
-
-
 \section{Other outputs}
 The command
 \begin{lstlisting}
 [betahat, se, stats] = ivreg(Y, T, Z, W);
 \end{lstlisting}
-returns a cell array \lstinline!stats! that contains additional statistics and
-their names. In particular, it contains the first-stage $F$-statistic,
-\begin{align*}
-  \text{\lstinline!stats\{1,1\}!} &= \frac{\bt'\Hm{\bz_{\perp}}\bt}{K \cdot\bt'\Mm{\bz,\bw}\bt /(n-K-L)},&
-  \text{\lstinline!stats\{1,2\}!} &= \text{\lstinline!'F'!},
-\end{align*}
-an estimator of the reduced-form covariance matrix
-\begin{align*}
-  \text{\lstinline!stats\{2,1\}!}&=
+returns a cell array \lstinline!stats!. The first column contains additional
+statistics, and the second column contains their labels:
+\begin{lstlisting}
+stats(:,2) = {'F', 'Omega', 'Xi', 'Sargan test', 'Modified Cragg-Donald test'};
+\end{lstlisting}
+Here \lstinline!'F'! refers to the first-stage $F$-statistic,
+\begin{equation*}
+  \text{\lstinline!stats\{1,1\}!} = \frac{\bt'\Hm{\bz_{\perp}}\bt}{K \cdot\bt'\Mm{\bz,\bw}\bt /(n-K-L)}.
+\end{equation*}
+\lstinline!'Omega'! is an estimator of the covariance matrix of reduced-form
+errors
+\begin{equation*}
+  \text{\lstinline!stats\{2,1\}!}=
   \begin{pmatrix}
     \by&\bt
   \end{pmatrix}' \Mm{\bz,\bt} \begin{pmatrix}
     \by&\bt
-  \end{pmatrix}/(n-K-L)&
-  \text{\lstinline!stats\{2,2\}!} &= \text{\lstinline!'Omega'!},
-\end{align*}
-an estimator of the covariance matrix of the reduced form coefficients,
-$\Xi=\Pi'\bz_{\perp}'\bz_{\perp}\Pi/n$ (see \citet{kolesar12late}), where $\Pi$
-is the coefficient on $Z_{i}$ in the linear predictor
-$\LP{(Y_{i},T_{i})}{Z_{i},W_{i}}$:
-\begin{align*}
-  \text{\lstinline!stats\{3,1\}!}&=
+  \end{pmatrix}/(n-K-L).
+\end{equation*}
+\lstinline!'Xi'! is an estimator of the covariance matrix of the reduced form
+coefficients, $\Xi=\Pi'\bz_{\perp}'\bz_{\perp}\Pi/n$ (see
+\citet{kolesar12late}), where $\Pi$ is the coefficient on $Z_{i}$ in the linear
+predictor $\LP{(Y_{i},T_{i})}{Z_{i},W_{i}}$:
+\begin{equation*}
+  \text{\lstinline!stats\{3,1\}!}=
   \begin{pmatrix}
     \by&\bt
   \end{pmatrix}' \Hm{\bz_{\perp}} \begin{pmatrix}
     \by&\bt
-  \end{pmatrix}/n-K/n\cdot     \text{\lstinline!stats\{2,1\}!}&
-  \text{\lstinline!stats\{3,2\}!} &= \text{\lstinline!'Xi'!},
-\end{align*}
+  \end{pmatrix}/n-K/n\cdot     \text{\lstinline!stats\{2,1\}!}.
+\end{equation*}
 The estimator is consistent under the many-instrument asymptotic sequence and
 homoscedasticity.
 
+\lstinline!'Sargan test'! gives the test statistic and p-value for the
+\citet{sargan58} test of overidentifying restrictions. \lstinline!stats{5,1}! a
+2-by-1 vector, with the first element equal to the test statistic, given by
+$n\min\eig(S_{\perp}^{-1}S)/(1-K/n-L/n+\min\eig(S_{\perp}^{-1}S))$, where $S$
+and $S_{\perp}$ are defined in Equation \eqref{eq:sperp-s}, and the second
+element equal to the p-value.
+
+\lstinline!'Modified Cragg-Donald test'! gives the test statistic and p-value
+for the \citet{cd93} test of overidentifying restrictions. The p-value contains
+a size-correction derived in \citet{kolesar12re} that ensures correct coverage
+under many-instrument asymptotics, and it is given by
+\begin{equation*}
+  1-\Phi(\sqrt{(n-K-L)/(n-L)}\Phi^{-1}(F_{K-1}(J_{S}))),
+\end{equation*}
+where $J_{S}=\min\eig(S_{\perp}^{-1}S)$ is the Sargan test statistic , $\Phi$ is
+the cdf of a standard Normal distribution, and $F_{K-1}$ is the cdf of a
+$\chi^{2}$ distribution with $K-1$ degrees of freedom. If If there is only one
+instrument, \lstinline!stats{5,1}! and \lstinline!stats{6,1}! return
+\lstinline!NaN!.
 
 
 \begin{appendices}
-  The appendix derives the expressions for different estimators an gives
-  informal proofs of consistency of estimators of the asymptotic variance.
-
-  Let $\bx=(\bt,\bw)$ denote the full matrix of covariates in the structural
+  The appendix derives the expressions for different point estimators as well as
+  estimators of the asymptotic variance. Throughout the appendix, let
+  $\bx=(\bt,\bw)$ denote the full matrix of covariates in the structural
   equation.
 
 \section{Estimators}
 If an estimator of $(\beta,\psi')'$ can be written as
-$(\hat{\bx}'\bx)^{-1}\hat{\bx}'\by$, where $\hat{\bx}=(\hat{\bt},\bw)$, we
-obtain:
+$(\hat{\bx}'\bx)^{-1}\hat{\bx}'\by$, where $\hat{\bx}=(\hat{\bt},\bw)$ for some
+$\hat{\bt}$, we have that
   \begin{align}\label{eq:betapsi}
     \begin{pmatrix}
       \hat{\beta}\\\hat{\psi}
@@ -386,8 +412,8 @@ obtain:
     =
     \begin{pmatrix}
       (\hat{\bt}'\Mm{\bw}\bt)^{-1}\hat{\bt}'\Mm{\bw}\by\\
-      (\bw'\bw)^{-1}\bw'(\by-\bt\hat{\beta}),
-    \end{pmatrix}
+      (\bw'\bw)^{-1}\bw'(\by-\bt\hat{\beta})
+    \end{pmatrix},
   \end{align}
   so that letting $\hat{\bp}=\Mm{\bw}\hat{\bt}$, an estimator of $\beta$ is
   given by Equation \eqref{eq:hatbeta}. Now:
@@ -395,8 +421,8 @@ obtain:
     \hat{\bx}_{\mathtt{ols}}&=\bx,\\
     \hat{\bx}_{\mathtt{tsls}}&=\Hm{\bz,\bw}\bx=
     \begin{pmatrix}
-      \Hm{\bz,\bw}\bt& \bw,
-    \end{pmatrix}
+      \Hm{\bz,\bw}\bt& \bw
+    \end{pmatrix},
   \end{align*}
   which, using the identity
   \begin{equation}\label{eq:Hzw}
@@ -489,8 +515,6 @@ element of the estimator of the variance evaluates as
 \end{equation*}
 The expression for the \texttt{jive} standard error estimator follows.
 
-\todo[inline]{justify UJIVE}
-
 \paragraph{Heteroscedasticity}
 Without the additional homoscedasticity restrictions on the structural error,
 the asymptotic variance of the \texttt{ols} estimator is given by
@@ -534,25 +558,8 @@ where $\hat{\bx}=(\hat{\bt},\bw)$ for some $\hat{\bt}$. The (1,1) element of
 \end{multline*}
 where $\hat{\phi}=(\bw'\bw)^{-1}\bw'\hat{\bt}$. Since
 $(\Mm{\hat{\bt}})_{i}=\hat{\bt}_{i}-W_{i}'\hat{\phi}$, the expressions for the
-standard errors given in the test follow. \todo[inline]{justify ujive}
+standard errors given in the test follow.
 \end{appendices}
-
-\dotfill
-
-
-
-
-
-\begin{align*}
-  \begin{split}
-    (\bx'\Hm{\bz,\bw}\bx)^{-1}\bx'\Hm{\bz,\bw}\by &=
-    \begin{pmatrix}
-      (\bt'\Hm{\bz_{\perp}}\bt)^{-1} \bt'\Hm{\bz_{\perp}}\by\\
-      (\bw'\bw)^{-1} \bw'(\by-\bt (\bt'\Hm{\bz_{\perp}}\bt)^{-1}
-      \bt'\Hm{\bz_{\perp}}\by)
-    \end{pmatrix}
-  \end{split}
-\end{align*}
 
 \SmallBib
 \bibliography{/home/kolesarm/texmf/db/wi,/home/kolesarm/texmf/db/metrics,/home/kolesarm/texmf/db/books}

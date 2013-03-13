@@ -1,10 +1,10 @@
 function [beta se stats] = ivreg(y, T, Z, W, varargin)
-%IVREG Instrumental Variables regression
+%IVREG Instrumental variables regression
 %   BETA = IVREG(Y, T, Z, W) returns a vector BETA of different estimators of
 %   the causal effect of the n-by-1 vector T on the n-by-1 vector out outcomes
 %   Y, where the n-by-1 vector T is endogenous, and the n-by-L matrix W contains
 %   exogenous regressors. Z is an n-by-K matrix of instruments. These matrices
-%   may be sparse.
+%   may be sparse to handle big datasets.
 %
 %   In particular, BETA = [OLS, TSLS, LIML, MBTSLS, JIVE, UJIVE, RTSLS]. LIML is
 %   Limited information maximum likelihood, MBTSLS is the Kolesar, Chetty,
@@ -31,13 +31,14 @@ function [beta se stats] = ivreg(y, T, Z, W, varargin)
 %   STATS{1,1:2}={Fvalue,'F'}. The second row contains an estimate of the
 %   reduced-form covariance matrix, labelled Omega. The third row contains an
 %   estimate of XI, labelled 'Xi'. The fourth row returns the Sargan test of
-%   overidentifying restrictions, STATS{5,1} is a 2-by-1 vector, with the first
+%   overidentifying restrictions. STATS{5,1} is a 2-by-1 vector, with the first
 %   element equal to the test statistic and the second element equal to the
 %   p-value. The fifth row returns the Cragg-Donald test of overidentifying
 %   restrictions, STATS{6,1} is a 2-by-1 vector, with the first element equal to
-%   the test statistic and the second element equal to the p-value. Kolesar
-%   (2012) modification. If there is only one instrument, STATS{5,1} and
-%   STATS{6,1} return NaN.
+%   the test statistic and the second element equal to the p-value. The p-value
+%   contains a size-correction derived in Kolesar (2012) that ensures correct
+%   coverage under many-instrument asymptotics. If there is only one instrument,
+%   STATS{5,1} and STATS{6,1} return NaN.
 %
 %   [...] = IVREG(y, T,..., 'noConstant', BOOL,...) if false, adds a constant as
 %   exogenous regressor unless W spans a constant vector already. Default is
@@ -69,9 +70,9 @@ p.parse(y, T, Z, W, varargin{:})
 % Check that the matrices (T, Z, W) and left hand side (y) have compatible dimensions
 [n,K] = size(Z);
 L = size(W,2);
-if ~isvector(y) | ~isvector(T)
+if ~isvector(y) || ~isvector(T)
     error('stats:ivreg:InvalidData', 'Y and T must be a vectors.');
-elseif numel(y) ~= n | numel(T) ~= n | size(W,1) ~= n
+elseif numel(y) ~= n || numel(T) ~= n || size(W,1) ~= n
     error('stats:ivreg:InvalidData', ...
           'The number of rows in Y, W and T must equal the number of rows in Z.');
 elseif size(y,2) == n
@@ -87,8 +88,10 @@ if p.Results.noConstant == false
     Wc = [W ones(n, 1)]; % matrix X with a constant added
     if issparse(W) && rank(full(Wc' * Wc)) > rank(full(W' * W)),
         W = Wc;
+        disp('Added a row of ones to the matrix of covariates.\n')
     elseif ~issparse(W) && rank(Wc' * Wc) > rank(W' * W),
         W = Wc;
+        disp('Added a row of ones to the matrix of covariates.\n')
     end
 end
 
@@ -129,7 +132,7 @@ beta = [beta, (hatPjive'*y) ./ (hatPjive'*T), ...
 
 
 %% 5. Standard Errors
-if nargout > 1 | p.Results.printTable == true,
+if nargout > 1 || p.Results.printTable == true
     se = NaN(4,7);
     epsilon = @(beta) Yp(:,1) - Yp(:,2)*beta;
 
@@ -157,13 +160,16 @@ if nargout > 1 | p.Results.printTable == true,
 
     %% 5.3 Many instruments
 
-    % Hessian of random-effects
-    Sp = YMY/(n-K-L);
+    % Notation
+    Sp = YMY/(n-K-L); % S_{perp}
     S = YPY/n;
+    mmin = min(eig(Sp\S));
+
+    % Hessian of random-effects
     lamre = max(eig(Sp\S))-K/n;
     a = [beta(3);1];
     b = [1;-beta(3)];
-    Omre = (n-K-L)*Sp/(n-L) + n*(S-lamre*a*a'/((a'/Sp)*a))/(n-L);
+    Omre = (n-K-L)*Sp/(n-L) + n*(S-lamre*(a*a')/((a'/Sp)*a))/(n-L);
     Qs = b'*S*b/(b'*Omre*b);
     c = lamre*Qs / ((1-L/n) * (K/n+lamre));
 
@@ -174,13 +180,13 @@ if nargout > 1 | p.Results.printTable == true,
     b = [1;-beta(4)]; % b_mbtsls
     Lam11 = max([0, b' * (S-K/n*Sp)* b]);
 
-    if min(eig(Sp\S)) > K/n
+    if mmin > K/n
         Lam22 = S(2, 2) - K/n*Sp(2, 2);
         Omure = Sp;
     else
         Lam22 = lamre/((a'/Omre)*a);
         Omure = Omre;
-    end % if min(eig(Sp\S)) > K/n
+    end
 
     Gamma = @(beta) [1, 0; -beta, 1];
     Sig = Gamma(beta(4))'*Omure*Gamma(beta(4));
@@ -200,23 +206,23 @@ if nargout > 2
     stats{2, 1} = Sp; % reduced-form covariance matrix
     stats{3, 1} = YPY/n - (K/n)* Sp; % Xi
 
-    stats(:,2)={'F','Omega','Xi'};
+    stats(:,2) = {'F','Omega','Xi','Sargan test',...
+                  'Modified Cragg-Donald test'};
 
     if size(Z, 2) > 1,
-        overid(1) = N * (1 - ([1 -beta(3)] * YMY * [1;-beta(3)])...
-                         / ([1 -beta(3)] * YY * [1;-beta(3)]));
-        pvalue(1) = 1 - chi2cdf(overid(1),K - 1);
-        overid(2) = (N - K - L) * log((N - K - L) * k(3) / (N - L))...
-            - K * log((N - L) * overid(1) / (N * K));
-        pvalue(2) = 1 - chi2cdf(overid(3),1);
-    else
-        overid = NaN(4, 1);
-    end
-    stats{4,1} = [];
-    stats{4,2} = 'Sargan test statistic and p-value';
-    stats{5,1} = [];
-    stats{5,2} = 'Modified Cragg-Donald test statistic and p-value';
+        overid(1) = n*mmin/(1-K/n-L/n+mmin); % n* J_sargan
+        pvalue(1) = 1 - chi2cdf(overid(1), K-1); % p-value for Sargan
 
+        overid(2) = n*mmin; % Cragg-Donald
+        pvalue(2) = 1-normcdf(sqrt((n-K-L)/(n-L))*...
+                              norminv(chi2cdf(overid(2),K-1)));
+    else
+        overid = NaN(2, 1);
+        pvalue = NaN(2, 1);
+    end
+
+    stats{4,1} = [overid(1) pvalue(1)];
+    stats{5,1} = [overid(2) pvalue(2)];
 end % if nargout > 2
 
 
@@ -238,4 +244,4 @@ if p.Results.printTable == true,
       fprintf('1 covariate, ');
   end
   fprintf('first-stage F=%.1f \n', roundn(F,-1));
-end %
+end
