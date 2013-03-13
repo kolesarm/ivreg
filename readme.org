@@ -1,0 +1,3 @@
+* =ivreg=
+A matlab function that performs instrumental variables regression. See
+=ivreg.pdf= for documentation.
