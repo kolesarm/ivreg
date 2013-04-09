@@ -1,7 +1,7 @@
 function [beta se stats] = ivreg(y, T, Z, W, varargin)
 %IVREG Instrumental variables regression
 %   BETA = IVREG(Y, T, Z, W) returns a vector BETA of different estimators of
-%   the causal effect of the n-by-1 vector T on the n-by-1 vector out outcomes
+%   the causal effect of the n-by-1 vector T on the n-by-1 vector of outcomes
 %   Y, where the n-by-1 vector T is endogenous, and the n-by-L matrix W contains
 %   exogenous regressors. Z is an n-by-K matrix of instruments. These matrices
 %   may be sparse to handle big datasets.
@@ -229,19 +229,19 @@ end % if nargout > 2
 %% 6. Print results
 
 if p.Results.printTable == true,
-  for k = 1: length(beta)
-      fprintf(' %6s:  % -.3f \n',betaLabels{k}, roundn(full(beta(k)),-3));
-  end % for
-  fprintf('\n%d observations, ',n);
-  if K>1
-      fprintf('%d instruments, ',K);
-  else
-      fprintf('1 instrument, ');
-  end
-  if L>1
-      fprintf('%d covariates, ',L);
-  else
-      fprintf('1 covariate, ');
-  end
-  fprintf('first-stage F=%.1f \n', roundn(F,-1));
+    for k = 1: length(beta)
+        fprintf(' %6s:  % -.3f \n',betaLabels{k}, roundn(full(beta(k)),-3));
+    end % for
+    fprintf('\n%d observations, ',n);
+    if K>1
+        fprintf('%d instruments, ',K);
+    else
+        fprintf('1 instrument, ');
+    end
+    if L>1
+        fprintf('%d covariates, ',L);
+    else
+        fprintf('1 covariate, ');
+    end
+    fprintf('first-stage F=%.1f \n', roundn(YPY(2, 2) / (K * Sp(2,2)),-1));
 end
