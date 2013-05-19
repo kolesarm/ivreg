@@ -333,16 +333,21 @@ The command
 \begin{lstlisting}
 [betahat, se, stats] = ivreg(Y, T, Z, W);
 \end{lstlisting}
-returns a cell array \lstinline!stats!. The first column contains additional
-statistics, and the second column contains their labels:
+returns a structure \lstinline!stats!, which contains
 \begin{lstlisting}
-stats(:,2) = {'F', 'Omega', 'Xi', 'Sargan test', 'Modified Cragg-Donald test'};
+stats =
+
+         F: 5.5275
+     Omega: [2x2 double]
+        Xi: [2x2 double]
+    Sargan: [42.3602 5.7180e-05]
+        CD: [48.9588 8.7507e-06]
 \end{lstlisting}
-Here \lstinline!'F'! refers to the first-stage $F$-statistic,
+\lstinline!stats.F! refers to the first-stage $F$-statistic,
 \begin{equation*}
   \text{\lstinline!stats\{1,1\}!} = \frac{\bt'\Hm{\bz_{\perp}}\bt}{K \cdot\bt'\Mm{\bz,\bw}\bt /(n-K-L)}.
 \end{equation*}
-\lstinline!'Omega'! is an estimator of the covariance matrix of reduced-form
+\lstinline!stats.Omega! is an estimator of the covariance matrix of reduced-form
 errors
 \begin{equation*}
   \text{\lstinline!stats\{2,1\}!}=
@@ -352,7 +357,7 @@ errors
     \by&\bt
   \end{pmatrix}/(n-K-L).
 \end{equation*}
-\lstinline!'Xi'! is an estimator of the covariance matrix of the reduced form
+\lstinline!Stats.Xi! is an estimator of the covariance matrix of the reduced form
 coefficients, $\Xi=\Pi'\bz_{\perp}'\bz_{\perp}\Pi/n$ (see
 \citet{kolesar12late}), where $\Pi$ is the coefficient on $Z_{i}$ in the linear
 predictor $\LP{(Y_{i},T_{i})}{Z_{i},W_{i}}$:
@@ -367,14 +372,15 @@ predictor $\LP{(Y_{i},T_{i})}{Z_{i},W_{i}}$:
 The estimator is consistent under the many-instrument asymptotic sequence and
 homoscedasticity.
 
-\lstinline!'Sargan test'! gives the test statistic and p-value for the
+\lstinline!stats.Sargan! gives the test statistic and p-value for the
 \citet{sargan58} test of overidentifying restrictions. \lstinline!stats{5,1}! a
 2-by-1 vector, with the first element equal to the test statistic, given by
 $n\min\eig(S_{\perp}^{-1}S)/(1-K/n-L/n+\min\eig(S_{\perp}^{-1}S))$, where $S$
 and $S_{\perp}$ are defined in Equation \eqref{eq:sperp-s}, and the second
 element equal to the p-value.
 
-\lstinline!'Modified Cragg-Donald test'! gives the test statistic and p-value
+
+\lstinline!Stats.CD! gives the test statistic and p-value
 for the \citet{cd93} test of overidentifying restrictions. The p-value contains
 a size-correction derived in \citet{kolesar12re} that ensures correct coverage
 under many-instrument asymptotics, and it is given by

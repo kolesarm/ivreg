@@ -24,21 +24,21 @@ function [beta se stats] = ivreg(y, T, Z, W, varargin)
 %   invalid instruments sequence of Kolesar, Chetty, Friedman, Glaeser and
 %   Imbens (2011)
 %
-%   [BETA, SE, STATS] = IVREG(Y, T, Z, W) returns a cell array STATS of
-%   additional statistics. The first column of STATS contains the values of the
-%   statistics, and the second column contains their names (labels). The first
-%   row returns the first-stage F statistic, labelled 'F', so that
-%   STATS{1,1:2}={Fvalue,'F'}. The second row contains an estimate of the
-%   reduced-form covariance matrix, labelled Omega. The third row contains an
-%   estimate of XI, labelled 'Xi'. The fourth row returns the Sargan test of
-%   overidentifying restrictions. STATS{5,1} is a 2-by-1 vector, with the first
-%   element equal to the test statistic and the second element equal to the
-%   p-value. The fifth row returns the Cragg-Donald test of overidentifying
-%   restrictions, STATS{6,1} is a 2-by-1 vector, with the first element equal to
-%   the test statistic and the second element equal to the p-value. The p-value
-%   contains a size-correction derived in Kolesar (2012) that ensures correct
-%   coverage under many-instrument asymptotics. If there is only one instrument,
-%   STATS{5,1} and STATS{6,1} return NaN.
+%   [BETA, SE, STATS] = IVREG(Y, T, Z, W) returns a structure (matlab equivalent
+%   of a python dictionary) STATS of additional statistics:
+
+%   STATS.F      - the first-stage F-statistic
+%   STATS.OMEGA  - an estimate of the reduced-form covariance matrix
+%   STATS.XI     - an estimate of XI
+%   STATS.SARGAN - a 2-by-1 vector, with the first element equal to the Sargan
+%                  test statistic and the second element equal to the p-value.
+%                  If there is only one instrument, return NaN.
+%   STATS.CD     - a 2-by-1 vector, with the first element equal to the
+%                  Cragg-Donald test statistic and the second element equal to
+%                  the p-value. The p-value contains a size-correction derived
+%                  in Kolesar (2012) that ensures correct coverage under
+%                  many-instrument asymptotics. If there is only one instrument,
+%                  return NaN.
 %
 %   [...] = IVREG(y, T,..., 'noConstant', BOOL,...) if false, adds a constant as
 %   exogenous regressor unless W spans a constant vector already. Default is
@@ -201,13 +201,8 @@ end % if nargout > 1,
 %% 3. Other outputs
 
 if nargout > 2
-    stats=cell(5,2);
-    stats{1, 1} = YPY(2, 2) / (K * Sp(2,2)); % first-stage F
-    stats{2, 1} = Sp; % reduced-form covariance matrix
-    stats{3, 1} = YPY/n - (K/n)* Sp; % Xi
-
-    stats(:,2) = {'F','Omega','Xi','Sargan test',...
-                  'Modified Cragg-Donald test'};
+    F = YPY(2, 2) / (K * Sp(2,2)); % first-stage F
+    Xi = YPY/n - (K/n)* Sp; % Xi
 
     if size(Z, 2) > 1,
         overid(1) = n*mmin/(1-K/n-L/n+mmin); % n* J_sargan
@@ -221,8 +216,8 @@ if nargout > 2
         pvalue = NaN(2, 1);
     end
 
-    stats{4,1} = [overid(1) pvalue(1)];
-    stats{5,1} = [overid(2) pvalue(2)];
+    stats = struct('F',F, 'Omega',Sp,'Xi',Xi,'Sargan',[overid(1) pvalue(1)], ...
+                   'CD',[overid(2) pvalue(2)]);
 end % if nargout > 2
 
 
